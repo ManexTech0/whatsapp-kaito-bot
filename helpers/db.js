@@ -1,28 +1,37 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const db = new Database(path.join(__dirname, '..', 'data.sqlite'));
+import fs from "fs";
 
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS users (
-    username TEXT PRIMARY KEY,
-    yaps INTEGER,
-    last_updated INTEGER
-  )
-`).run();
+const DB_PATH = "./data.json";
 
-function updateUserYaps(username, yaps) {
-  const now = Date.now();
-  const stmt = db.prepare(`
-    INSERT INTO users (username, yaps, last_updated)
-    VALUES (?, ?, ?)
-    ON CONFLICT(username)
-    DO UPDATE SET yaps = excluded.yaps, last_updated = excluded.last_updated
-  `);
-  stmt.run(username, yaps, now);
+// load existing data
+function readData() {
+  try {
+    const raw = fs.readFileSync(DB_PATH, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return { users: {} };
+  }
 }
 
-function getUser(username) {
-  return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+// save updated data
+function writeData(data) {
+  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
-module.exports = { updateUserYaps, getUser };
+// get user info
+export function getUser(username) {
+  const db = readData();
+  return db.users[username] || { yaps: 0, innerCT: false };
+}
+
+// update user info
+export function updateUser(username, update) {
+  const db = readData();
+  db.users[username] = { ...getUser(username), ...update };
+  writeData(db);
+}
+
+// increment yaps
+export function addYap(username) {
+  const user = getUser(username);
+  updateUser(username, { yaps: user.yaps + 1 });
+}
